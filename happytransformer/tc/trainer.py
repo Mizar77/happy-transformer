@@ -9,9 +9,11 @@ https://huggingface.co/transformers/custom_datasets.html#sequence-classification
 
 import csv
 import torch
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-from transformers import Trainer, AdamW
+from transformers import AdamW
+from happytransformer.trainer import Trainer
 
 
 class TCTrainer(Trainer):
@@ -28,6 +30,8 @@ class TCTrainer(Trainer):
 
         optim = AdamW(self.model.parameters(), lr=args['learning_rate'])
         self.model.train()
+        pbar = tqdm(total=args['epochs']*len(contexts))
+
 
         for epoch in range(args['epochs']):
             epoch_output = "Epoch: " + str(epoch) + "\n\n"
@@ -46,7 +50,8 @@ class TCTrainer(Trainer):
                 loss.backward()
                 optim.step()
                 batch_num += 1
-
+                pbar.update(args['batch_size'])
+        pbar.close()
         self.model.eval()
 
 
@@ -54,16 +59,53 @@ class TCTrainer(Trainer):
 
     def eval(self, input_filepath, solve, output_filepath, args):
         contexts, labels = self.__get_data(input_filepath)
-        eval_encodings = self.tokenizer(contexts, truncation=True, padding=True)
-        eval_dataset = TextClassificationDataset(eval_encodings, labels)
+
+        correct = 0
+        count = 0
+        total = len(contexts)
+        results = list()
+
+        for case in zip(contexts, labels):
+            context = case[0]
+            label = case[1]
+
+            output = solve(context)
+            result = output["answer"]
+            softmax = output["softmax"]
+
+            # todo modify the qa functionality to output with correct capitalization
+
+            if result == label:
+                correct += 1
+
+            results.append(
+                {
+                    "text": context,
+                    "answer": label,
+                    "result": result,
+                    "correct": result == label,
+                    "softmax": softmax
+
+                }
+                )
+            count += 1
 
 
+        score = correct/total
+        ending = str(round(score, 2) * 100) + "%"
+
+        result_output = "Evaluating Result: " + str(correct) + "/" + str(total) + " -- " + ending
+        self.logger.info(result_output)
+
+        fieldnames = ["text", "answer", "result", "correct", "softmax"]
+        self._output_result_to_csv(output_filepath, fieldnames, results)
+
+        return score
 
 
 
     def test(self, input_filepath, solve, output_filepath, args):
         contexts = self.__get_data(input_filepath, True)
-        test_encodings = self.tokenizer(contexts, truncation=True, padding=True)
 
 
     @staticmethod
@@ -80,7 +122,7 @@ class TCTrainer(Trainer):
             for row in reader:
                 contexts.append(row['text'])
                 if not test_data:
-                    labels.append(row['label'])
+                    labels.append(int(row['label']))
         csv_file.close()
 
         if not test_data:

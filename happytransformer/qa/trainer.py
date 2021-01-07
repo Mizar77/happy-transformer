@@ -16,7 +16,6 @@ from transformers import AdamW
 from happytransformer.trainer import Trainer
 
 class QATrainer(Trainer):
-
     def __init__(self, model, model_type, tokenizer, device, logger):
         super().__init__(model, model_type, tokenizer, device, logger)
 

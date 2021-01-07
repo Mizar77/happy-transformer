@@ -1,6 +1,6 @@
 ARGS_TC_TRAIN = {
     'max_length': 300,
-    'batch_size': 16,
+    'batch_size': 2,
     'learning_rate': 5e-5,
     'epochs': 2,
 

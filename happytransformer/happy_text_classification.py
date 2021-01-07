@@ -1,3 +1,5 @@
+import torch
+
 from happytransformer.tc.trainer import TCTrainer
 
 from transformers import (
@@ -9,10 +11,11 @@ from transformers import (
 
 from happytransformer.happy_transformer import HappyTransformer
 from happytransformer.tc.default_args import ARGS_TC_EVAL, ARGS_TC_TEST, ARGS_TC_TRAIN
+import numpy as np
 
 class HappyTextClassification(HappyTransformer):
     def __init__(self, model_type="BERT",
-                 model_name="'bert-large-uncased-whole-word-masking-finetuned-squad'", device=None):
+                 model_name="bert-large-uncased-whole-word-masking-finetuned-squad", device=None):
         model = None
         tokenizer = None
 
@@ -27,7 +30,20 @@ class HappyTextClassification(HappyTransformer):
                                   model_type, tokenizer, self._device, self.logger)
 
     def predict_text(self, text):
-        raise NotImplementedError()
+
+
+        inputs= self._tokenizer(text, return_tensors="pt")
+        # labels = torch.tensor([1]).unsqueeze(0)
+        output = self._model(**inputs)
+        logits = output.logits
+        preds = logits.detach().cpu().numpy()
+        preds = np.argmax(preds, axis=1)
+
+        return {
+            "answer": preds[0],
+            "softmax": 0,
+        }
+
 
     def train(self, input_filepath, args=ARGS_TC_TRAIN):
         """
